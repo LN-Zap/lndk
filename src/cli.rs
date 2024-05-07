@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use lndk::lndk_offers::decode;
 use lndk::offers::offers_client::OffersClient;
 use lndk::offers::PayOfferRequest;
+use lndk::DEFAULT_SERVER_HOST;
 use lndk::DEFAULT_SERVER_PORT;
 use std::ffi::OsString;
 use tonic::Request;
@@ -43,6 +44,9 @@ struct Cli {
 
     #[arg(short, long, global = true, required = false, default_value = get_macaroon_path_default())]
     macaroon: String,
+
+    #[arg(short, long, global = true, required = false, default_value = DEFAULT_SERVER_HOST.to_string())]
+    grpc_host: String,
 
     #[arg(short, long, global = true, required = false, default_value = DEFAULT_SERVER_PORT.to_string())]
     grpc_port: u16,
@@ -104,8 +108,9 @@ async fn main() -> Result<(), ()> {
             ref offer_string,
             amount,
         } => {
+            let grpc_host = args.grpc_host.clone();
             let grpc_port = args.grpc_port;
-            let mut client = OffersClient::connect(format!("http://[::1]:{grpc_port}"))
+            let mut client = OffersClient::connect(format!("http://{grpc_host}:{grpc_port}"))
                 .await
                 .map_err(|e| {
                     println!("ERROR: connecting to server {:?}.", e);

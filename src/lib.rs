@@ -51,6 +51,7 @@ pub fn init_logger(config: LogConfig) {
     });
 }
 
+pub const DEFAULT_SERVER_HOST: &str = "[::1]";
 pub const DEFAULT_SERVER_PORT: u16 = 7000;
 
 #[allow(clippy::result_unit_err)]
