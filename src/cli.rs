@@ -169,7 +169,7 @@ async fn main() -> Result<(), ()> {
             add_metadata(&mut request, macaroon).map_err(|_| ())?;
 
             match client.get_invoice(request).await {
-                Ok(_) => println!("Successfully fetched invoice for offer!"),
+                Ok(invoice) => println!("Successfully fetched invoice for offer: {:?}", invoice),
                 Err(err) => println!("Error fetching invoice for offer: {err:?}"),
             };
 
