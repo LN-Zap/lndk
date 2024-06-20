@@ -55,6 +55,16 @@ enum Commands {
         /// The offer string to decode.
         offer_string: String,
     },
+    /// GetInvoice fetches a BOLT 12 Invoice for a BOLT 12 offer, provided as a 'lno'-prefaced offer string
+    GetInvoice {
+        /// The offer string.
+        offer_string: String,
+
+        /// Amount the user would like to pay. If this isn't set, we'll assume the user is paying
+        /// whatever the offer amount is.
+        #[arg(required = false)]
+        amount: Option<u64>,
+    },
     /// PayOffer pays a BOLT 12 offer, provided as a 'lno'-prefaced offer string.
     PayOffer {
         /// The offer string.
@@ -87,6 +97,83 @@ async fn main() -> Result<(), ()> {
                     Err(())
                 }
             }
+        }
+        Commands::GetInvoice {
+            ref offer_string,
+            amount,
+        } => {
+            let data_dir = home::home_dir().unwrap().join(DEFAULT_DATA_DIR);
+            let pem = match args.cert_pem {
+                Some(pem) => pem,
+                None => {
+                    // If no cert pem string is provided, we'll look for the tls certificate in the
+                    // default location.
+                    std::fs::read_to_string(data_dir.join(TLS_CERT_FILENAME))
+                        .map_err(|e| println!("ERROR reading cert: {e:?}"))?
+                }
+            };
+            let cert = Certificate::from_pem(pem);
+            let tls = ClientTlsConfig::new()
+                .ca_certificate(cert)
+                .domain_name("localhost");
+
+            let grpc_host = args.grpc_host;
+            let grpc_port = args.grpc_port;
+            let channel = Channel::from_shared(format!("{grpc_host}:{grpc_port}")) //
+                .map_err(|e| println!("ERROR creating endpoint: {e:?}"))?
+                .tls_config(tls)
+                .map_err(|e| println!("ERROR tls config: {e:?}"))?
+                .connect()
+                .await
+                .map_err(|e| println!("ERROR connecting: {e:?}"))?;
+
+            let mut client = OffersClient::new(channel);
+
+            let offer = match decode(offer_string.to_owned()) {
+                Ok(offer) => offer,
+                Err(e) => {
+                    println!(
+                        "ERROR: please provide offer starting with lno. Provided offer is \
+                        invalid, failed to decode with error: {:?}.",
+                        e
+                    );
+                    return Err(());
+                }
+            };
+
+            // Make sure both macaroon options are not set.
+            if args.macaroon_path.is_some() && args.macaroon_hex.is_some() {
+                println!("ERROR: Only one of `macaroon_path` or `macaroon_hex` should be set.");
+                return Err(());
+            }
+
+            // Let's grab the macaroon string now. If neither macaroon_path nor macaroon_hex are
+            // set, use the default macaroon path.
+            let macaroon = match args.macaroon_path {
+                Some(path) => read_macaroon_from_file(path)
+                    .map_err(|e| println!("ERROR reading macaroon from file {e:?}"))?,
+                None => match args.macaroon_hex {
+                    Some(macaroon) => macaroon,
+                    None => {
+                        let path = get_macaroon_path_default(&args.network);
+                        read_macaroon_from_file(path)
+                            .map_err(|e| println!("ERROR reading macaroon from file {e:?}"))?
+                    }
+                },
+            };
+
+            let mut request = Request::new(PayOfferRequest {
+                offer: offer.to_string(),
+                amount,
+            });
+            add_metadata(&mut request, macaroon).map_err(|_| ())?;
+
+            match client.get_invoice(request).await {
+                Ok(_) => println!("Successfully fetched invoice for offer!"),
+                Err(err) => println!("Error fetching invoice for offer: {err:?}"),
+            };
+
+            Ok(())
         }
         Commands::PayOffer {
             ref offer_string,
