@@ -4,25 +4,16 @@ use crate::{lndkrpc, OfferError, OfferHandler, PayOfferParams};
 use bitcoin::secp256k1::PublicKey;
 use lightning::offers::offer::Offer;
 use lndkrpc::offers_server::Offers;
-use lndkrpc::{PayOfferRequest, PayOfferResponse};
+use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12InvoiceData};
 use lightning::offers::invoice::BlindedPayInfo;
 use lightning::blinded_path::BlindedPath;
 use lightning::util::ser::Writeable;
-use lightning::ln::features::Features;
-use lndkrpc::offers_server::Offers;
-use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12InvoiceData};
-use rcgen::{generate_simple_self_signed, CertifiedKey, Error as RcgenError};
-use std::error::Error;
-use std::fmt::Display;
-use std::fs::{metadata, set_permissions, File};
-use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tonic::metadata::MetadataMap;
 use tonic::{Request, Response, Status};
 use tonic_lnd::lnrpc::GetInfoRequest;
+
 pub struct LNDKServer {
     offer_handler: Arc<OfferHandler>,
     node_id: PublicKey,
@@ -53,8 +44,6 @@ impl Offers for LNDKServer {
         &self,
         request: Request<PayOfferRequest>,
     ) -> Result<Response<GetInvoiceResponse>, Status> {
-        log::info!("Received a request: {:?}", request);
-
         let metadata = request.metadata();
         let macaroon = check_auth_metadata(metadata)?;
         let creds = Creds::String {
@@ -76,7 +65,7 @@ impl Offers for LNDKServer {
         let destination = get_destination(&offer).await;
         let reply_path = match self
             .offer_handler
-            .create_reply_path(client.clone(), self.node_id)
+            .create_reply_path(client.clone(), self.node_id, offer.signing_pubkey())
             .await
         {
             Ok(reply_path) => reply_path,

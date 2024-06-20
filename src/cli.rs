@@ -102,32 +102,13 @@ async fn main() -> Result<(), ()> {
             ref offer_string,
             amount,
         } => {
-            let data_dir = home::home_dir().unwrap().join(DEFAULT_DATA_DIR);
-            let pem = match args.cert_pem {
-                Some(pem) => pem,
-                None => {
-                    // If no cert pem string is provided, we'll look for the tls certificate in the
-                    // default location.
-                    std::fs::read_to_string(data_dir.join(TLS_CERT_FILENAME))
-                        .map_err(|e| println!("ERROR reading cert: {e:?}"))?
-                }
-            };
-            let cert = Certificate::from_pem(pem);
-            let tls = ClientTlsConfig::new()
-                .ca_certificate(cert)
-                .domain_name("localhost");
-
             let grpc_host = args.grpc_host;
             let grpc_port = args.grpc_port;
-            let channel = Channel::from_shared(format!("{grpc_host}:{grpc_port}")) //
-                .map_err(|e| println!("ERROR creating endpoint: {e:?}"))?
-                .tls_config(tls)
-                .map_err(|e| println!("ERROR tls config: {e:?}"))?
-                .connect()
+            let mut client = OffersClient::connect(format!("{grpc_host}:{grpc_port}"))
                 .await
-                .map_err(|e| println!("ERROR connecting: {e:?}"))?;
-
-            let mut client = OffersClient::new(channel);
+                .map_err(|e| {
+                    println!("ERROR: connecting to server {:?}.", e);
+                })?;
 
             let offer = match decode(offer_string.to_owned()) {
                 Ok(offer) => offer,
@@ -170,7 +151,7 @@ async fn main() -> Result<(), ()> {
 
             match client.get_invoice(request).await {
                 Ok(invoice) => println!("Successfully fetched invoice for offer: {:?}", invoice),
-                Err(err) => println!("Error fetching invoice for offer: {err:?}"),
+                Err(err) => println!("Error paying for offer: {err:?}"),
             };
 
             Ok(())

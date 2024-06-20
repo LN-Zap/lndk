@@ -252,6 +252,33 @@ impl OfferHandler {
         }
     }
 
+    pub async fn get_invoice(
+        &self,
+        cfg: PayOfferParams,
+    ) -> Result<Bolt12Invoice, OfferError<Secp256k1Error>> {
+        let offer_id = cfg.offer.clone().to_string();
+        self.send_invoice_request(cfg).await.map_err(|e| {
+            let mut active_offers = self.active_offers.lock().unwrap();
+            active_offers.remove(&offer_id.clone());
+            e
+        })?;
+
+        let invoice = match timeout(Duration::from_secs(20), self.wait_for_invoice()).await {
+            Ok(invoice) => invoice,
+            Err(_) => {
+                error!("Did not receive invoice in 20 seconds.");
+                let mut active_offers = self.active_offers.lock().unwrap();
+                active_offers.remove(&offer_id.clone());
+                return Err(OfferError::InvoiceTimeout);
+            }
+        };
+        {
+            let mut active_offers = self.active_offers.lock().unwrap();
+            active_offers.insert(offer_id.clone(), OfferState::InvoiceReceived);
+        }
+        Ok(invoice)
+    }
+
     /// Adds an offer to be paid with the amount specified. May only be called once for a single
     /// offer.
     pub async fn pay_offer(
