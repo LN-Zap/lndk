@@ -8,6 +8,7 @@ use lndkrpc::{PayOfferRequest, PayOfferResponse};
 use lightning::offers::invoice::BlindedPayInfo;
 use lightning::blinded_path::BlindedPath;
 use lightning::util::ser::Writeable;
+use lightning::ln::features::Features;
 use lndkrpc::offers_server::Offers;
 use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12InvoiceData};
 use rcgen::{generate_simple_self_signed, CertifiedKey, Error as RcgenError};
@@ -141,6 +142,7 @@ impl Offers for LNDKServer {
                 cltv_expiry_delta: native_info.cltv_expiry_delta as u32,
                 htlc_minimum_msat: native_info.htlc_minimum_msat,
                 htlc_maximum_msat: native_info.htlc_maximum_msat,
+                features: native_info.features.encode().iter().map(|&b| b as i32).collect()
             }
         }
 
