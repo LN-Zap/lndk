@@ -5,6 +5,18 @@ use bitcoin::secp256k1::PublicKey;
 use lightning::offers::offer::Offer;
 use lndkrpc::offers_server::Offers;
 use lndkrpc::{PayOfferRequest, PayOfferResponse};
+use lightning::offers::invoice::BlindedPayInfo;
+use lightning::blinded_path::BlindedPath;
+use lightning::util::ser::Writeable;
+use lndkrpc::offers_server::Offers;
+use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12InvoiceData};
+use rcgen::{generate_simple_self_signed, CertifiedKey, Error as RcgenError};
+use std::error::Error;
+use std::fmt::Display;
+use std::fs::{metadata, set_permissions, File};
+use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use tonic::metadata::MetadataMap;
@@ -109,16 +121,87 @@ impl Offers for LNDKServer {
             },
         };
 
-        let amount = match invoice.amount() {
-            Some(Amount::Bitcoin { amount_msats: ref bitcoin_amt }) => *bitcoin_amt,
-            None => 0,
-            _ => panic!("unexpected amount type"),
+        let amount_msats = invoice.amount_msats();
+
+        let payment_hash_bytes = invoice.payment_hash().encode();
+        let payment_hash = lndkrpc::PaymentHash {
+            hash: payment_hash_bytes
         };
 
+        let signing_pubkey_bytes = invoice.signing_pubkey().encode();
+        let signing_pubkey = lndkrpc::PublicKey {
+            key: signing_pubkey_bytes
+        };
+
+        // Conversion function for BlindedPayInfo
+        fn convert_blinded_pay_info(native_info: &BlindedPayInfo) -> lndkrpc::BlindedPayInfo {
+            lndkrpc::BlindedPayInfo {
+                fee_base_msat: native_info.fee_base_msat,
+                fee_proportional_millionths: native_info.fee_proportional_millionths,
+                cltv_expiry_delta: native_info.cltv_expiry_delta as u32,
+                htlc_minimum_msat: native_info.htlc_minimum_msat,
+                htlc_maximum_msat: native_info.htlc_maximum_msat,
+            }
+        }
+
+        fn convert_public_key(native_pub_key: PublicKey) -> lndkrpc::PublicKey {
+            let pub_key_bytes = native_pub_key.encode(); // Assuming `encode` returns Vec<u8>
+            lndkrpc::PublicKey {
+                key: pub_key_bytes,
+            }
+        }
+
+        fn convert_bytes_to_u32_vec(bytes: Vec<u8>) -> Vec<u32> {
+            bytes.chunks(4).filter_map(|chunk| {
+                if chunk.len() == 4 {
+                    Some(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+                } else {
+                    None // Ignore incomplete chunks
+                }
+            }).collect()
+        }
+
+        // Conversion function for BlindedPath
+        fn convert_blinded_path(native_info: &BlindedPath) -> lndkrpc::BlindedPath {
+
+            let introduction_node_id_bytes = native_info.introduction_node_id.encode();
+            let introduction_node_id = lndkrpc::PublicKey {
+                key: introduction_node_id_bytes
+            };
+
+
+            let blinding_point_bytes = native_info.blinding_point.encode();
+            let blinding_point = lndkrpc::PublicKey {
+                key: blinding_point_bytes
+            };
+
+            lndkrpc::BlindedPath {
+                introduction_node_id: Some(introduction_node_id),
+                blinding_point: Some(blinding_point),
+                blinded_hops: native_info.blinded_hops.iter().map(|hop| lndkrpc::BlindedHop {
+                    blinded_node_id: Some(convert_public_key(hop.blinded_node_id)),
+                    encrypted_payload: convert_bytes_to_u32_vec(hop.encrypted_payload.clone()),
+                }).collect(),
+            }
+        }
+
+        let payment_paths: &[(lightning::offers::invoice::BlindedPayInfo, lightning::blinded_path::BlindedPath)] = invoice.payment_paths();
+
+        let payment_paths_vec: Vec<lndkrpc::PaymentPaths> = payment_paths.iter().map(|(blinded_pay_info, blinded_path)| {
+            lndkrpc::PaymentPaths {
+                blinded_pay_info: Some(convert_blinded_pay_info(blinded_pay_info)),
+                blinded_path: Some(convert_blinded_path(blinded_path))
+            }
+        }).collect();
+
         let reply = GetInvoiceResponse {
-            invoice: Some(Bolt12InvoiceMessage {
-                amount,
-                description: invoice.description().to_string()
+            invoice: Some(Bolt12InvoiceData {
+                amount: amount_msats,
+                description: invoice.description().to_string(),
+                payment_hash: Some(payment_hash),
+                relative_expiry: invoice.relative_expiry().as_secs(),
+                signing_pubkey: Some(signing_pubkey),
+                payment_paths: payment_paths_vec,
             }),
         };
 
