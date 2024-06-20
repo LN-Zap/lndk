@@ -92,6 +92,7 @@ impl Offers for LNDKServer {
         let invoice = match self.offer_handler.get_invoice(cfg).await {
             Ok(invoice) => {
                 log::info!("GetInvoice succeeded.");
+                log::debug!("Invoice: {:?}", invoice);
                 invoice
             }
             Err(e) => match e {
@@ -109,13 +110,14 @@ impl Offers for LNDKServer {
         };
 
         let amount = match invoice.amount() {
-            Some(Amount::Bitcoin { amount_msats: bitcoin_amt }) => bitcoin_amt,
+            Some(Amount::Bitcoin { amount_msats: ref bitcoin_amt }) => *bitcoin_amt,
+            None => 0,
             _ => panic!("unexpected amount type"),
         };
 
         let reply = GetInvoiceResponse {
             invoice: Some(Bolt12InvoiceMessage {
-                amount: *amount,
+                amount,
                 description: invoice.description().to_string()
             }),
         };
