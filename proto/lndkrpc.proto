@@ -25,7 +25,7 @@ message BlindedPayInfo {
 
 message BlindedHop {
     PublicKey blinded_node_id = 1;
-    repeated uint32 encrypted_payload = 2;
+    bytes encrypted_payload = 2;
 }
 
 message BlindedPath {

@@ -121,17 +121,13 @@ impl Offers for LNDKServer {
             },
         };
 
-        let amount_msats = invoice.amount_msats();
-
-        let payment_hash_bytes = invoice.payment_hash().encode();
-        let payment_hash = lndkrpc::PaymentHash {
-            hash: payment_hash_bytes
-        };
-
-        let signing_pubkey_bytes = invoice.signing_pubkey().encode();
-        let signing_pubkey = lndkrpc::PublicKey {
-            key: signing_pubkey_bytes
-        };
+        // Conversion function for PublicKey
+        fn convert_public_key(native_pub_key: PublicKey) -> lndkrpc::PublicKey {
+            let pub_key_bytes = native_pub_key.encode();
+            lndkrpc::PublicKey {
+                key: pub_key_bytes,
+            }
+        }
 
         // Conversion function for BlindedPayInfo
         fn convert_blinded_pay_info(native_info: &BlindedPayInfo) -> lndkrpc::BlindedPayInfo {
@@ -145,63 +141,37 @@ impl Offers for LNDKServer {
             }
         }
 
-        fn convert_public_key(native_pub_key: PublicKey) -> lndkrpc::PublicKey {
-            let pub_key_bytes = native_pub_key.encode(); // Assuming `encode` returns Vec<u8>
-            lndkrpc::PublicKey {
-                key: pub_key_bytes,
-            }
-        }
-
-        fn convert_bytes_to_u32_vec(bytes: Vec<u8>) -> Vec<u32> {
-            bytes.chunks(4).filter_map(|chunk| {
-                if chunk.len() == 4 {
-                    Some(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-                } else {
-                    None // Ignore incomplete chunks
-                }
-            }).collect()
-        }
-
         // Conversion function for BlindedPath
         fn convert_blinded_path(native_info: &BlindedPath) -> lndkrpc::BlindedPath {
-
-            let introduction_node_id_bytes = native_info.introduction_node_id.encode();
-            let introduction_node_id = lndkrpc::PublicKey {
-                key: introduction_node_id_bytes
-            };
-
-
-            let blinding_point_bytes = native_info.blinding_point.encode();
-            let blinding_point = lndkrpc::PublicKey {
-                key: blinding_point_bytes
-            };
-
             lndkrpc::BlindedPath {
-                introduction_node_id: Some(introduction_node_id),
-                blinding_point: Some(blinding_point),
+                introduction_node_id: Some(convert_public_key(native_info.introduction_node_id)),
+                blinding_point: Some(convert_public_key(native_info.blinding_point)),
                 blinded_hops: native_info.blinded_hops.iter().map(|hop| lndkrpc::BlindedHop {
                     blinded_node_id: Some(convert_public_key(hop.blinded_node_id)),
-                    encrypted_payload: convert_bytes_to_u32_vec(hop.encrypted_payload.clone()),
+                    encrypted_payload: hop.encrypted_payload.clone(),
                 }).collect(),
             }
         }
 
-        let payment_paths: &[(lightning::offers::invoice::BlindedPayInfo, lightning::blinded_path::BlindedPath)] = invoice.payment_paths();
-
-        let payment_paths_vec: Vec<lndkrpc::PaymentPaths> = payment_paths.iter().map(|(blinded_pay_info, blinded_path)| {
-            lndkrpc::PaymentPaths {
+        let payment_paths_vec: Vec<lndkrpc::PaymentPaths> = invoice.payment_paths()
+            .iter()
+            .map(|(blinded_pay_info, blinded_path)| lndkrpc::PaymentPaths {
                 blinded_pay_info: Some(convert_blinded_pay_info(blinded_pay_info)),
-                blinded_path: Some(convert_blinded_path(blinded_path))
-            }
-        }).collect();
+                blinded_path: Some(convert_blinded_path(blinded_path)),
+            })
+            .collect();
+
+        let payment_hash = lndkrpc::PaymentHash {
+            hash: invoice.payment_hash().encode()
+        };
 
         let reply = GetInvoiceResponse {
             invoice: Some(Bolt12InvoiceData {
-                amount: amount_msats,
+                amount: invoice.amount_msats(),
                 description: invoice.description().to_string(),
                 payment_hash: Some(payment_hash),
                 relative_expiry: invoice.relative_expiry().as_secs(),
-                signing_pubkey: Some(signing_pubkey),
+                signing_pubkey: Some(convert_public_key(invoice.signing_pubkey())),
                 payment_paths: payment_paths_vec,
             }),
         };
