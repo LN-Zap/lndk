@@ -170,6 +170,7 @@ impl Offers for LNDKServer {
                 amount: invoice.amount_msats(),
                 description: invoice.description().to_string(),
                 payment_hash: Some(payment_hash),
+                created_at: invoice.created_at().as_secs() as i64,
                 relative_expiry: invoice.relative_expiry().as_secs(),
                 signing_pubkey: Some(convert_public_key(invoice.signing_pubkey())),
                 payment_paths: payment_paths_vec,

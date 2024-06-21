@@ -87,6 +87,7 @@ message Bolt12InvoiceData {
     string description = 2;
     PaymentHash payment_hash = 3;
     repeated PaymentPaths payment_paths = 4;
-    uint64 relative_expiry = 5;
-    PublicKey signing_pubkey = 6;
+    int64 created_at = 5;
+    uint64 relative_expiry = 6;
+    PublicKey signing_pubkey = 7;
 }
