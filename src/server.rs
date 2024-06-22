@@ -167,7 +167,7 @@ impl Offers for LNDKServer {
 
         let reply = GetInvoiceResponse {
             invoice: Some(Bolt12InvoiceData {
-                amount: invoice.amount_msats(),
+                amount_msats: invoice.amount_msats(),
                 description: invoice.description().to_string(),
                 payment_hash: Some(payment_hash),
                 created_at: invoice.created_at().as_secs() as i64,

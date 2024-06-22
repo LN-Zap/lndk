@@ -83,7 +83,7 @@ message PayOfferResponse {
 }
 
 message Bolt12InvoiceData {
-    uint64 amount = 1;
+    uint64 amount_msats = 1;
     string description = 2;
     PaymentHash payment_hash = 3;
     repeated PaymentPaths payment_paths = 4;
