@@ -4,7 +4,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Compile the protos for our grpc server.
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .compile(&["proto/lndkrpc.proto"], &["proto"])?;
-
+        .compile(
+            &["proto/lndkrpc.proto"],
+            &["proto"],
+        )?;
     Ok(())
 }

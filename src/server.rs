@@ -6,7 +6,7 @@ use crate::{
 use bitcoin::secp256k1::PublicKey;
 use lightning::offers::offer::Offer;
 use lndkrpc::offers_server::Offers;
-use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12Invoice, Bolt12InvoiceRequest};
+use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12Invoice, Bolt12InvoiceRequest, FeatureBit};
 use lightning::offers::invoice::BlindedPayInfo;
 use lightning::blinded_path::BlindedPath;
 use lightning::util::ser::Writeable;
@@ -129,6 +129,44 @@ impl Offers for LNDKServer {
             }
         }
 
+        fn feature_bit_from_id(feature_id: u8) -> Option<FeatureBit> {
+            match feature_id {
+                0 => Some(FeatureBit::DatalossProtectOpt),
+                1 => Some(FeatureBit::DatalossProtectOpt),
+                3 => Some(FeatureBit::InitialRouingSync),
+                4 => Some(FeatureBit::UpfrontShutdownScriptReq),
+                5 => Some(FeatureBit::UpfrontShutdownScriptOpt),
+                6 => Some(FeatureBit::GossipQueriesReq),
+                7 => Some(FeatureBit::GossipQueriesOpt),
+                8 => Some(FeatureBit::TlvOnionReq),
+                9 => Some(FeatureBit::TlvOnionOpt),
+                10 => Some(FeatureBit::ExtGossipQueriesReq),
+                11 => Some(FeatureBit::ExtGossipQueriesOpt),
+                12 => Some(FeatureBit::StaticRemoteKeyReq),
+                13 => Some(FeatureBit::StaticRemoteKeyOpt),
+                14 => Some(FeatureBit::PaymentAddrReq),
+                15 => Some(FeatureBit::PaymentAddrOpt),
+                16 => Some(FeatureBit::MppReq),
+                17 => Some(FeatureBit::MppOpt),
+                18 => Some(FeatureBit::WumboChannelsReq),
+                19 => Some(FeatureBit::WumboChannelsOpt),
+                20 => Some(FeatureBit::AnchorsReq),
+                21 => Some(FeatureBit::AnchorsOpt),
+                22 => Some(FeatureBit::AnchorsZeroFeeHtlcReq),
+                23 => Some(FeatureBit::AnchorsZeroFeeHtlcOpt),
+                30 => Some(FeatureBit::AmpReq),
+                31 => Some(FeatureBit::AmpOpt),
+                _ => None,
+            }
+        }
+
+        fn convert_features(features: Vec<u8>) -> Vec<i32> {
+            features.iter()
+                .filter_map(|&feature_id| feature_bit_from_id(feature_id))
+                .map(|feature_bit| feature_bit as i32) // Cast enum variant to i32
+                .collect()
+        }
+
         // Conversion function for BlindedPayInfo
         fn convert_blinded_pay_info(native_info: &BlindedPayInfo) -> lndkrpc::BlindedPayInfo {
             lndkrpc::BlindedPayInfo {
@@ -137,7 +175,7 @@ impl Offers for LNDKServer {
                 cltv_expiry_delta: native_info.cltv_expiry_delta as u32,
                 htlc_minimum_msat: native_info.htlc_minimum_msat,
                 htlc_maximum_msat: native_info.htlc_maximum_msat,
-                features: native_info.features.encode().iter().map(|&b| b as i32).collect()
+                features: convert_features(native_info.features.clone().encode()),
             }
         }
 
@@ -171,7 +209,7 @@ impl Offers for LNDKServer {
                     amount_msat: inner_request.amount(),
                     chain: invoice.chain().to_string(),
                     quantity: invoice.quantity(),
-                    features: invoice.invoice_features().encode().iter().map(|&b| b as i32).collect()
+                    features: convert_features(invoice.invoice_features().clone().encode())
                 }),
                 amount_msat: invoice.amount_msats(),
                 description: invoice.description().to_string(),
@@ -181,7 +219,7 @@ impl Offers for LNDKServer {
                 node_id: Some(convert_public_key(invoice.signing_pubkey())),
                 signature: invoice.signature().to_string(),
                 payment_paths: payment_paths_vec,
-                features: invoice.invoice_features().encode().iter().map(|&b| b as i32).collect()
+                features: convert_features(invoice.invoice_features().clone().encode())
             }),
         };
 
