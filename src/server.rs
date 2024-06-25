@@ -168,12 +168,12 @@ impl Offers for LNDKServer {
         let reply = GetInvoiceResponse {
             invoice: Some(Bolt12Invoice {
                 request: Some(Bolt12InvoiceRequest {
-                    amount_msats: inner_request.amount(),
+                    amount_msat: inner_request.amount(),
                     chain: invoice.chain().to_string(),
                     quantity: invoice.quantity(),
                     features: invoice.invoice_features().encode().iter().map(|&b| b as i32).collect()
                 }),
-                amount_msats: invoice.amount_msats(),
+                amount_msat: invoice.amount_msats(),
                 description: invoice.description().to_string(),
                 payment_hash: Some(payment_hash),
                 created_at: invoice.created_at().as_secs() as i64,

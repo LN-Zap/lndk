@@ -83,7 +83,7 @@ message PayOfferResponse {
 }
 
 message Bolt12InvoiceRequest {
-    uint64 amount_msats = 1;
+    uint64 amount_msat = 1;
     string chain = 2;
     optional uint64 quantity = 3;
     repeated FeatureBit features = 4;
@@ -91,7 +91,7 @@ message Bolt12InvoiceRequest {
 
 message Bolt12Invoice {
     Bolt12InvoiceRequest request = 1;
-    uint64 amount_msats = 2;
+    uint64 amount_msat = 2;
     string description = 3;
     PaymentHash payment_hash = 4;
     repeated PaymentPaths payment_paths = 5;
