@@ -6,7 +6,7 @@ use crate::{
 use bitcoin::secp256k1::PublicKey;
 use lightning::offers::offer::Offer;
 use lndkrpc::offers_server::Offers;
-use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12InvoiceData};
+use lndkrpc::{PayOfferRequest, PayOfferResponse, GetInvoiceResponse, Bolt12Invoice, Bolt12InvoiceRequest};
 use lightning::offers::invoice::BlindedPayInfo;
 use lightning::blinded_path::BlindedPath;
 use lightning::util::ser::Writeable;
@@ -166,14 +166,22 @@ impl Offers for LNDKServer {
         };
 
         let reply = GetInvoiceResponse {
-            invoice: Some(Bolt12InvoiceData {
+            invoice: Some(Bolt12Invoice {
+                request: Some(Bolt12InvoiceRequest {
+                    amount_msats: inner_request.amount(),
+                    chain: invoice.chain().to_string(),
+                    quantity: invoice.quantity(),
+                    features: invoice.invoice_features().encode().iter().map(|&b| b as i32).collect()
+                }),
                 amount_msats: invoice.amount_msats(),
                 description: invoice.description().to_string(),
                 payment_hash: Some(payment_hash),
                 created_at: invoice.created_at().as_secs() as i64,
                 relative_expiry: invoice.relative_expiry().as_secs(),
-                signing_pubkey: Some(convert_public_key(invoice.signing_pubkey())),
+                node_id: Some(convert_public_key(invoice.signing_pubkey())),
+                signature: invoice.signature().to_string(),
                 payment_paths: payment_paths_vec,
+                features: invoice.invoice_features().encode().iter().map(|&b| b as i32).collect()
             }),
         };
 

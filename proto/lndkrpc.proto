@@ -70,7 +70,7 @@ message PaymentPaths {
 }
 
 message GetInvoiceResponse {
-    Bolt12InvoiceData invoice = 1;
+    Bolt12Invoice invoice = 1;
 }
 
 message PayOfferRequest {
@@ -82,12 +82,22 @@ message PayOfferResponse {
     string payment_preimage = 2;
 }
 
-message Bolt12InvoiceData {
+message Bolt12InvoiceRequest {
     uint64 amount_msats = 1;
-    string description = 2;
-    PaymentHash payment_hash = 3;
-    repeated PaymentPaths payment_paths = 4;
-    int64 created_at = 5;
-    uint64 relative_expiry = 6;
-    PublicKey signing_pubkey = 7;
+    string chain = 2;
+    optional uint64 quantity = 3;
+    repeated FeatureBit features = 4;
+}
+
+message Bolt12Invoice {
+    Bolt12InvoiceRequest request = 1;
+    uint64 amount_msats = 2;
+    string description = 3;
+    PaymentHash payment_hash = 4;
+    repeated PaymentPaths payment_paths = 5;
+    int64 created_at = 6;
+    uint64 relative_expiry = 7;
+    PublicKey node_id = 8;
+    string signature = 9;
+    repeated FeatureBit features = 10;
 }
