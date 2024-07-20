@@ -178,6 +178,7 @@ impl OfferHandler {
         offer: Offer,
         network: Network,
         msats: Option<u64>,
+        payer_note: Option<String>,
     ) -> Result<(InvoiceRequest, PaymentId, u64), OfferError> {
         let validated_amount = validate_amount(offer.amount(), msats).await?;
 
@@ -186,6 +187,13 @@ impl OfferHandler {
         let key_loc = KeyLocator {
             key_family: 6,
             key_index: 1,
+        };
+
+        // LDK's invoice request builder doesn't take a payer_note "option," so if no payer_note
+        // was provided by the user, let's just pass in an empty string.
+        let payer_note = match payer_note {
+            Some(payer_note) => payer_note,
+            None => "".to_string(),
         };
 
         let pubkey_bytes = signer
@@ -214,6 +222,7 @@ impl OfferHandler {
             .map_err(OfferError::BuildUIRFailure)?
             .amount_msats(validated_amount)
             .map_err(OfferError::BuildUIRFailure)?
+            .payer_note(payer_note)
             .build()
             .map_err(OfferError::BuildUIRFailure)?;
 
@@ -798,7 +807,13 @@ mod tests {
         let offer = decode(get_offer()).unwrap();
         let handler = OfferHandler::new();
         let resp = handler
-            .create_invoice_request(signer_mock, offer, Network::Regtest, Some(amount))
+            .create_invoice_request(
+                signer_mock,
+                offer,
+                Network::Regtest,
+                Some(amount),
+                Some("".to_string()),
+            )
             .await;
         assert!(resp.is_ok())
     }
@@ -818,7 +833,13 @@ mod tests {
         let offer = decode(get_offer()).unwrap();
         let handler = OfferHandler::new();
         assert!(handler
-            .create_invoice_request(signer_mock, offer, Network::Regtest, Some(10000))
+            .create_invoice_request(
+                signer_mock,
+                offer,
+                Network::Regtest,
+                Some(10000),
+                Some("".to_string())
+            )
             .await
             .is_err())
     }
@@ -841,7 +862,13 @@ mod tests {
         let offer = decode(get_offer()).unwrap();
         let handler = OfferHandler::new();
         assert!(handler
-            .create_invoice_request(signer_mock, offer, Network::Regtest, Some(10000))
+            .create_invoice_request(
+                signer_mock,
+                offer,
+                Network::Regtest,
+                Some(10000),
+                Some("".to_string())
+            )
             .await
             .is_err())
     }
