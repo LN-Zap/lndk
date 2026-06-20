@@ -326,9 +326,13 @@ pub fn get_lnd_args(
             "--bitcoind.rpchost={:?}",
             bitcoind_connect_params.rpc_socket
         ),
-        format!("--protocol.custom-message=513"),
-        format!("--protocol.custom-nodeann=39"),
-        format!("--protocol.custom-init=39"),
+        // LND v0.21+ handles onion messages (type 513) natively and advertises
+        // the onion message feature bit (39) by default, so LNDK uses the
+        // native SendOnionMessage/SubscribeOnionMessages transport. The legacy
+        // flags below are intentionally NOT set:
+        //   --protocol.custom-message=513  (513 is now a known message type)
+        //   --protocol.custom-nodeann=39   (would fail: "feature bit 39 already
+        //   --protocol.custom-init=39       set", since 0.21 sets it natively)
     ];
 
     let stdout_log_path = lnd_data_dir.join("lnd-itest-stdout.log");
@@ -398,15 +402,22 @@ pub async fn wait_for_lnd_payment_completion(
             .await;
         assert!(invoices.is_ok());
         let invoices = invoices.unwrap().into_inner();
-        if !invoices.invoices.is_empty() {
-            let invoice = invoices.invoices[0].clone();
-            log::debug!("Invoice status: {:?}", invoice.state);
-            if invoice.state == InvoiceHtlcState::Settled as i32 {
-                log::info!("Payment succeeded");
-                return Ok(());
-            }
+        // A single offer can legitimately yield more than one invoice (e.g. when
+        // the payer sends several invoice_requests, each of which LNDK answers
+        // with its own invoice). Only one of them gets paid, so scan all
+        // invoices for any settled one rather than only checking invoices[0].
+        let settled = invoices
+            .invoices
+            .iter()
+            .any(|invoice| invoice.state == InvoiceHtlcState::Settled as i32);
+        if settled {
+            log::info!("Payment succeeded");
+            return Ok(());
         }
-        log::debug!("No payments found yet, waiting 1 second...");
+        log::debug!(
+            "No settled invoice yet among {} invoice(s), waiting 1 second...",
+            invoices.invoices.len()
+        );
         sleep(Duration::from_secs(1)).await;
     }
 }
