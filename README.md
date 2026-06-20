@@ -33,7 +33,41 @@ Note that this guide assumes some familiarity with setting up `LND`. If you're l
 
 #### Running LND
 
-Once you're ready to run `LND`, the binary must be run with `--protocol.custom-message=513` to allow it to report onion messages to `LNDK` as well as `--protocol.custom-nodeann=39` `--protocol.custom-init=39` for advertising the onion message feature bits.
+How you run `LND` depends on its version, because `LND v0.21.0-beta` introduced
+**native onion messaging**. `LNDK` detects the connected `LND` version on startup
+and selects the correct transport automatically, so you only need to configure
+`LND` to match its version.
+
+##### LND v0.21.0-beta and later (native onion messages)
+
+`LND` handles onion messages (BOLT 1 message type 513) natively and advertises
+the onion message feature bit (39) by default, so **no extra protocol flags are
+required**. `LNDK` uses `LND`'s native `SendOnionMessage` / `SubscribeOnionMessages`
+RPCs.
+
+> [!IMPORTANT]
+> Do **not** set `--protocol.custom-init=39` / `--protocol.custom-nodeann=39` on
+> `LND v0.21+`. The bit is already advertised natively and `LND` will refuse to
+> start with `feature bit 39 already set`. `--protocol.custom-message=513` is no
+> longer needed either (513 is now a known message type).
+
+By default, `LND v0.21+` only accepts incoming onion messages from peers with
+which it has at least one active channel. If your node needs to receive BOLT 12
+messages (invoice requests for your offers, or invoice responses to your
+payments) relayed from peers you have no channel with, run `LND` with:
+
+```
+[protocol]
+protocol.onion-msg-relay-all=true
+```
+
+##### LND v0.18.0-beta through v0.20.x (legacy custom-message transport)
+
+Older `LND` releases have no native onion messaging, so `LNDK` tunnels onion
+messages through `LND`'s custom message API. The binary must be run with
+`--protocol.custom-message=513` to allow it to report onion messages to `LNDK`,
+as well as `--protocol.custom-nodeann=39` `--protocol.custom-init=39` for
+advertising the onion message feature bits.
 
 There are two ways you can do this:
 
