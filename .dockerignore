@@ -1,0 +1,6 @@
+# Keep the Docker build context small and reproducible.
+# Build artifacts (the host target/ can be many GB).
+/target
+**/target
+# Local notes / large files not needed by the build.
+session-transcript.txt

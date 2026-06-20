@@ -81,12 +81,14 @@ lightning-block-sync = { git = "https://github.com/vincenzopalazzo/rust-lightnin
 lightning-dns-resolver = { git = "https://github.com/vincenzopalazzo/rust-lightning", branch = "2025-06-cherry-pick-exposed-offer-amount-fix" }
 possiblyrandom = { git = "https://github.com/vincenzopalazzo/rust-lightning", branch = "2025-06-cherry-pick-exposed-offer-amount-fix" }
 
-# Local fork of tonic_lnd that adds the native onion message RPCs
-# (SendOnionMessage/SubscribeOnionMessages) introduced in LND v0.21. See
-# ../tonic_lnd. TODO: replace with an upstreamed lndk-org/tonic_lnd rev once
-# the vendored proto there is bumped to v0.21.
+# In-tree vendored fork of tonic_lnd that adds the native onion message RPCs
+# (SendOnionMessage/SubscribeOnionMessages) introduced in LND v0.21. Vendored
+# under ./tonic_lnd (rather than referenced via ../tonic_lnd) so the dependency
+# resolves inside the Docker build context (Dockerfile does `COPY . .`).
+# TODO: replace with a Git dependency once the proto change is upstreamed to
+# lndk-org/tonic_lnd (or a fork is published) — see tonic_lnd/UPSTREAM_PATCH_ONION.md.
 [patch."https://github.com/lndk-org/tonic_lnd"]
-lndk-tonic-lnd = { path = "../tonic_lnd" }
+lndk-tonic-lnd = { path = "tonic_lnd" }
 
 [lints.rust.unexpected_cfgs]
  level = "forbid"
