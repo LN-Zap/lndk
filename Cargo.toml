@@ -81,6 +81,13 @@ lightning-block-sync = { git = "https://github.com/vincenzopalazzo/rust-lightnin
 lightning-dns-resolver = { git = "https://github.com/vincenzopalazzo/rust-lightning", branch = "2025-06-cherry-pick-exposed-offer-amount-fix" }
 possiblyrandom = { git = "https://github.com/vincenzopalazzo/rust-lightning", branch = "2025-06-cherry-pick-exposed-offer-amount-fix" }
 
+# Local fork of tonic_lnd that adds the native onion message RPCs
+# (SendOnionMessage/SubscribeOnionMessages) introduced in LND v0.21. See
+# ../tonic_lnd. TODO: replace with an upstreamed lndk-org/tonic_lnd rev once
+# the vendored proto there is bumped to v0.21.
+[patch."https://github.com/lndk-org/tonic_lnd"]
+lndk-tonic-lnd = { path = "../tonic_lnd" }
+
 [lints.rust.unexpected_cfgs]
  level = "forbid"
  # When adding a new cfg attribute, ensure that it is added to this list.

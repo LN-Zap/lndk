@@ -1333,7 +1333,6 @@ dependencies = [
 [[package]]
 name = "lndk-tonic-lnd"
 version = "0.1.3"
-source = "git+https://github.com/lndk-org/tonic_lnd?rev=f89f49aadc439b37d65947cc454eecffdc8c35e0#f89f49aadc439b37d65947cc454eecffdc8c35e0"
 dependencies = [
  "hex",
  "http",
