@@ -815,9 +815,15 @@ struct OnionMessageStream {
 #[async_trait]
 impl IncomingMessageProducer for OnionMessageStream {
     async fn receive(&mut self) -> Result<CustomMessage, Status> {
-        match self.message_subscription.message().await? {
-            Some(update) => Ok(native_update_to_custom_message(update)),
-            None => Err(Status::unknown("no message provided")),
+        loop {
+            match self.message_subscription.message().await? {
+                Some(update) => {
+                    if let Some(message) = native_update_to_custom_message(update) {
+                        return Ok(message);
+                    }
+                }
+                None => return Err(Status::unknown("no message provided")),
+            }
         }
     }
 }
@@ -836,17 +842,33 @@ impl IncomingMessageProducer for OnionMessageStream {
 /// so we reassemble exactly those bytes here. LDK then re-peels the message
 /// using LND's signer, exactly as it did when the bytes arrived as custom
 /// message type 513.
-fn native_update_to_custom_message(update: OnionMessageUpdate) -> CustomMessage {
+fn native_update_to_custom_message(update: OnionMessageUpdate) -> Option<CustomMessage> {
+    if update.custom_records.is_empty() {
+        trace!("Ignoring native onion message update with no final-hop records (relayed by LND).");
+        return None;
+    }
+
+    let onion_len = match u16::try_from(update.onion.len()) {
+        Ok(len) => len,
+        Err(_) => {
+            error!(
+                "Dropping native onion message update with oversized onion packet: {} bytes.",
+                update.onion.len()
+            );
+            return None;
+        }
+    };
+
     let mut data = Vec::with_capacity(update.path_key.len() + 2 + update.onion.len());
     data.extend_from_slice(&update.path_key);
-    data.extend_from_slice(&(update.onion.len() as u16).to_be_bytes());
+    data.extend_from_slice(&onion_len.to_be_bytes());
     data.extend_from_slice(&update.onion);
 
-    CustomMessage {
+    Some(CustomMessage {
         peer: update.peer,
         r#type: ONION_MESSAGE_TYPE,
         data,
-    }
+    })
 }
 
 /// Consumes a stream of incoming message events from the IncomingMessageProducer until the stream
@@ -1958,10 +1980,11 @@ mod tests {
             peer: pubkey(0).serialize().to_vec(),
             path_key,
             onion,
+            custom_records: final_hop_records(),
             ..Default::default()
         };
 
-        let custom = native_update_to_custom_message(update);
+        let custom = native_update_to_custom_message(update).expect("update should be delivered");
         assert_eq!(custom.r#type, ONION_MESSAGE_TYPE);
         assert_eq!(custom.peer, pubkey(0).serialize().to_vec());
 
@@ -1974,5 +1997,36 @@ mod tests {
         let mut parsed_bytes = vec![];
         parsed.write(&mut parsed_bytes).unwrap();
         assert_eq!(original_bytes, parsed_bytes);
+    }
+
+    fn final_hop_records() -> HashMap<u64, Vec<u8>> {
+        HashMap::from([(64, vec![1, 2, 3])])
+    }
+
+    fn native_update(custom_records: HashMap<u64, Vec<u8>>) -> OnionMessageUpdate {
+        let original = onion_message();
+        let mut onion = vec![];
+        original.onion_routing_packet.write(&mut onion).unwrap();
+
+        OnionMessageUpdate {
+            peer: pubkey(0).serialize().to_vec(),
+            path_key: original.blinding_point.serialize().to_vec(),
+            onion,
+            custom_records,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_native_update_relayed_by_lnd_is_dropped() {
+        assert!(native_update_to_custom_message(native_update(HashMap::new())).is_none());
+    }
+
+    #[test]
+    fn test_native_update_oversized_onion_is_dropped() {
+        let mut update = native_update(final_hop_records());
+        update.onion = vec![0; usize::from(u16::MAX) + 1];
+
+        assert!(native_update_to_custom_message(update).is_none());
     }
 }
