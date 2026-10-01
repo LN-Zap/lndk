@@ -701,7 +701,7 @@ async fn subscribe_onion_messages_with_retry(
                         }
                         Err(e) => {
                             error!("Error subscribing to onion message events: {e}.");
-                            return Ok(())
+                            return Err(Box::new(e))
                         }
                     };
 
